@@ -299,6 +299,10 @@ public:
    */
   int64_t AssignStreams (int64_t stream);
 
+  int GetUrLimit (void) const;
+
+  void SetUrLimit (int urLimit);
+
 
 protected:
   ///< DcfState associated class
@@ -420,6 +424,8 @@ protected:
   WifiMacHeader m_currentHdr; //!< the current header
   MacLowTransmissionParameters m_currentParams; ///< current transmission parameters
   uint8_t m_fragmentNumber; //!< the fragment number
+  int m_urCount; //!< the count for Unsolicited Retry
+  int m_urLimit; //!< the limit for Unsolicited Retry
 };
 
 } //namespace ns3

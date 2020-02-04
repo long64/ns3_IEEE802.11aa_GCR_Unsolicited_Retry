@@ -41,7 +41,9 @@ RegularWifiMac::RegularWifiMac ()
     m_erpSupported (0),
     m_dsssSupported (0),
     m_heSupported (0),
-    m_enableAckOnMulticast (false)
+    m_enableAckOnMulticast (false),
+    m_aaSupported (0),
+    m_urLimit (0)
 {
   NS_LOG_FUNCTION (this);
   m_rxMiddle = Create<MacRxMiddle> ();
@@ -82,10 +84,12 @@ RegularWifiMac::DoInitialize ()
 {
   NS_LOG_FUNCTION (this);
   m_dca->Initialize ();
+  m_dca->SetUrLimit (m_urLimit);
 
   for (EdcaQueues::const_iterator i = m_edca.begin (); i != m_edca.end (); ++i)
     {
       i->second->Initialize ();
+      i->second->SetUrLimit (m_urLimit);
     }
 }
 
@@ -124,6 +128,7 @@ RegularWifiMac::SetWifiRemoteStationManager (const Ptr<WifiRemoteStationManager>
   m_stationManager->SetHtSupported (GetHtSupported ());
   m_stationManager->SetVhtSupported (GetVhtSupported ());
   m_stationManager->SetHeSupported (GetHeSupported ());
+  m_stationManager->SetAaSupported (GetAaSupported ());
   m_low->SetWifiRemoteStationManager (stationManager);
 
   m_dca->SetWifiRemoteStationManager (stationManager);
@@ -1269,8 +1274,19 @@ RegularWifiMac::GetTypeId (void)
                    "Enable ack on multicast.",
                    BooleanValue (false),
                    MakeBooleanAccessor (&RegularWifiMac::GetEnableAckOnMulticast,
-			   		&RegularWifiMac::SetEnableAckOnMulticast),
+                                        &RegularWifiMac::SetEnableAckOnMulticast),
                    MakeBooleanChecker ())
+    .AddAttribute ("AaSupported",
+                   "This Boolean attribute is set to enable 802.11aa support at this STA.",
+                   BooleanValue (false),
+                   MakeBooleanAccessor (&RegularWifiMac::GetAaSupported,
+                                        &RegularWifiMac::SetAaSupported),
+                   MakeBooleanChecker ())
+    .AddAttribute ("UrLimit", "The limit for GCR Unsolicied Retry.",
+                   IntegerValue (0),
+                   MakeIntegerAccessor (&RegularWifiMac::SetUrLimit,
+                                         &RegularWifiMac::GetUrLimit),
+                   MakeIntegerChecker<int> ())
   ;
   return tid;
 }
@@ -1426,6 +1442,30 @@ bool
 RegularWifiMac::GetEnableAckOnMulticast () const
 {
   return m_enableAckOnMulticast;
+}
+
+void
+RegularWifiMac::SetAaSupported (bool enable)
+{
+  m_aaSupported = enable;
+}
+
+bool
+RegularWifiMac::GetAaSupported () const
+{
+  return m_aaSupported;
+}
+
+void RegularWifiMac::SetUrLimit (int urLimit)
+{
+  NS_LOG_UNCOND ("RegularWifiMac : Set the limit as " << urLimit << " for GCR Unsolicited Retry.");
+  m_urLimit = urLimit;
+}
+
+int
+RegularWifiMac::GetUrLimit () const
+{
+  return m_urLimit;
 }
 
 } //namespace ns3

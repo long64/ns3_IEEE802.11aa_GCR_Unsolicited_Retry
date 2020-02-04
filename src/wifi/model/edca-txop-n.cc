@@ -219,8 +219,46 @@ EdcaTxopN::NotifyAccessGranted (void)
     {
       m_currentParams.DisableRts ();
       m_currentParams.DisableAck ();
+      WifiMacHeader peekedHdr;
+      Ptr<const WifiMacQueueItem> item;
+
+      if (m_currentHdr.IsQosData () && (item = m_queue->PeekByTidAndAddress (m_currentHdr.GetQosTid (), WifiMacHeader::ADDR2, m_currentHdr.GetAddr2 ())) && m_msduAggregator != 0 && !m_currentHdr.IsRetry ())
+        {
+          peekedHdr = item->GetHeader ();
+          /* here is performed aggregation */
+          Ptr<Packet> currentAggregatedPacket = Create<Packet> ();
+          m_msduAggregator->Aggregate (m_currentPacket, currentAggregatedPacket,
+                                       MapSrcAddressForAggregation (peekedHdr),
+                                       MapDestAddressForAggregation (peekedHdr));
+          bool aggregated = false;
+          bool isAmsdu = false;
+          Ptr<const WifiMacQueueItem> peekedItem = m_queue->PeekByTidAndAddress (m_currentHdr.GetQosTid (), WifiMacHeader::ADDR2, m_currentHdr.GetAddr2 ());
+          while (peekedItem != 0)
+            {
+              peekedHdr = peekedItem->GetHeader ();
+              aggregated = m_msduAggregator->Aggregate (peekedItem->GetPacket (), currentAggregatedPacket, MapSrcAddressForAggregation (peekedHdr), MapDestAddressForAggregation (peekedHdr));
+              if (aggregated)
+                {
+                  isAmsdu = true;
+                  m_queue->Remove (peekedItem->GetPacket ());
+                }
+              else
+                {
+                  break;
+                }
+              peekedItem = m_queue->PeekByTidAndAddress (m_currentHdr.GetQosTid (),
+                                                         WifiMacHeader::ADDR2, m_currentHdr.GetAddr2 ());
+            }
+          if (isAmsdu)
+            {
+              m_currentHdr.SetQosAmsdu ();
+              m_currentHdr.SetAddr3 (m_low->GetBssid ());
+              m_currentPacket = currentAggregatedPacket;
+              currentAggregatedPacket = 0;
+              NS_LOG_UNCOND ("tx multicast A-MSDU");
+            }
+        }
       m_currentParams.DisableNextData ();
-      NS_LOG_DEBUG ("tx broadcast");
       m_low->StartTransmission (m_currentPacket, &m_currentHdr, m_currentParams, this);
     }
   else if (m_currentHdr.GetType () == WIFI_MAC_CTL_BACKREQ)
@@ -933,12 +971,44 @@ EdcaTxopN::EndTxNoAck (void)
     {
       m_txopTrace (m_startTxop, Simulator::Now () - m_startTxop);
     }
-  m_currentPacket = 0;
-  m_dcf->ResetCw ();
-  m_cwTrace = m_dcf->GetCw ();
-  m_backoffTrace = m_rng->GetInteger (0, m_dcf->GetCw ());
-  m_dcf->StartBackoffNow (m_backoffTrace);
-  StartAccessIfNeeded ();
+  if (m_currentHdr.GetAddr1 ().IsGroup () && m_currentHdr.IsData ())
+    {
+      if (!m_txOkCallback.IsNull ())
+        {
+          m_txOkCallback (m_currentHdr);
+        }
+      if (m_urCount > 0)
+        {
+          NS_LOG_UNCOND ("-------- m_urCount = " << m_urCount << ". start next unsolicited retry. --------");
+          m_currentHdr.SetRetry ();
+          m_urCount = m_urCount - 1;
+          m_dcf->ResetCw ();
+          m_cwTrace = m_dcf->GetCw ();
+          m_backoffTrace = m_rng->GetInteger (0, m_dcf->GetCw ());
+          m_dcf->StartBackoffNow (m_backoffTrace);
+          RestartAccessIfNeeded ();
+        }
+      else
+        {
+          NS_LOG_UNCOND ("-------- m_urCount = " << m_urCount << ". finish unsolicited retry. --------");
+          m_urCount = m_urLimit;
+          m_currentPacket = 0;
+          m_dcf->ResetCw ();
+          m_cwTrace = m_dcf->GetCw ();
+          m_backoffTrace = m_rng->GetInteger (0, m_dcf->GetCw ());
+          m_dcf->StartBackoffNow (m_backoffTrace);
+          StartAccessIfNeeded ();
+        }
+    }
+  else
+    {
+      m_currentPacket = 0;
+      m_dcf->ResetCw ();
+      m_cwTrace = m_dcf->GetCw ();
+      m_backoffTrace = m_rng->GetInteger (0, m_dcf->GetCw ());
+      m_dcf->StartBackoffNow (m_backoffTrace);
+      StartAccessIfNeeded ();
+    }
 }
 
 bool
@@ -1538,6 +1608,7 @@ EdcaTxopN::DoInitialize ()
   m_cwTrace = m_dcf->GetCw ();
   m_backoffTrace = m_rng->GetInteger (0, m_dcf->GetCw ());
   m_dcf->StartBackoffNow (m_backoffTrace);
+  m_urCount = GetUrLimit ();
 }
 
 void

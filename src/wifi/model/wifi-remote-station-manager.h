@@ -909,6 +909,13 @@ public:
    */
   typedef void (*RateChangeTracedCallback)(DataRate oldRate, DataRate newRate, Mac48Address remoteAddress);
 
+  bool GetAaSupported (Mac48Address address) const;
+
+  void SetAaSupport (Mac48Address from, bool aaSupported);
+
+  virtual void SetAaSupported (bool enable);
+
+  bool HasAaSupported (void) const;
 
 protected:
   virtual void DoDispose (void);
@@ -1101,6 +1108,7 @@ protected:
    */
   Ptr<WifiMac> GetMac (void) const;
 
+  bool GetAaSupported (const WifiRemoteStation *station) const;
 
 private:
   /**
@@ -1522,6 +1530,8 @@ private:
    * exceeded the maximum number of attempts
    */
   TracedCallback<Mac48Address> m_macTxFinalDataFailed;
+
+  bool m_aaSupported;
 };
 
 /**
@@ -1569,6 +1579,7 @@ struct WifiRemoteStationState
   bool m_htSupported;         //!< Flag if HT is supported by the station
   bool m_vhtSupported;        //!< Flag if VHT is supported by the station
   bool m_heSupported;         //!< Flag if HE is supported by the station
+  bool m_aaSupported;
 };
 
 /**

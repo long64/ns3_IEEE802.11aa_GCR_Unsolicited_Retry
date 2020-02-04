@@ -575,6 +575,14 @@ protected:
   void SetEnableAckOnMulticast (bool enable);
   bool GetEnableAckOnMulticast () const;
 
+  bool m_aaSupported;
+  void SetAaSupported (bool enable);
+  bool GetAaSupported () const;
+
+  int m_urLimit;
+  void SetUrLimit (int urLimit);
+  int GetUrLimit (void) const;
+
 private:
   /// type conversion operator
   RegularWifiMac (const RegularWifiMac &);

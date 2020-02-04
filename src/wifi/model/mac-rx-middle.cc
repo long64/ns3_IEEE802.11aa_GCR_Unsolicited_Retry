@@ -317,7 +317,7 @@ MacRxMiddle::Receive (Ptr<Packet> packet, const WifiMacHeader *hdr)
   //filter duplicates.
   if (IsDuplicate (hdr, originator))
     {
-      NS_LOG_DEBUG ("duplicate from=" << hdr->GetAddr2 () <<
+      NS_LOG_UNCOND ("duplicate from=" << hdr->GetAddr2 () <<
                     ", seq=" << hdr->GetSequenceNumber () <<
                     ", frag=" << hdr->GetFragmentNumber ());
       return;
@@ -330,10 +330,8 @@ MacRxMiddle::Receive (Ptr<Packet> packet, const WifiMacHeader *hdr)
   NS_LOG_DEBUG ("forwarding data from=" << hdr->GetAddr2 () <<
                 ", seq=" << hdr->GetSequenceNumber () <<
                 ", frag=" << hdr->GetFragmentNumber ());
-  if (!hdr->GetAddr1 ().IsGroup ())
-    {
-      originator->SetSequenceControl (hdr->GetSequenceControl ());
-    }
+
+  originator->SetSequenceControl (hdr->GetSequenceControl ());
   m_callback (agregate, hdr);
 }
 

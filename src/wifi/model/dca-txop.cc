@@ -72,12 +72,14 @@ DcaTxop::GetTypeId (void)
 
 DcaTxop::DcaTxop ()
   : m_manager (0),
-    m_currentPacket (0)
+    m_currentPacket (0),
+    m_urLimit (0)
 {
   NS_LOG_FUNCTION (this);
   m_dcf = CreateObject<DcfState> (this);
   m_queue = CreateObject<WifiMacQueue> ();
   m_rng = CreateObject<UniformRandomVariable> ();
+  m_urCount = GetUrLimit ();
 }
 
 DcaTxop::~DcaTxop ()
@@ -269,6 +271,7 @@ DcaTxop::DoInitialize ()
   NS_LOG_FUNCTION (this);
   m_dcf->ResetCw ();
   m_dcf->StartBackoffNow (m_rng->GetInteger (0, m_dcf->GetCw ()));
+  m_urCount = GetUrLimit ();
 }
 
 bool
@@ -585,10 +588,39 @@ DcaTxop::EndTxNoAck (void)
 {
   NS_LOG_FUNCTION (this);
   NS_LOG_DEBUG ("a transmission that did not require an ACK just finished");
-  m_currentPacket = 0;
-  m_dcf->ResetCw ();
-  m_dcf->StartBackoffNow (m_rng->GetInteger (0, m_dcf->GetCw ()));
-  StartAccessIfNeeded ();
+  // GCR Unsolicited Retry
+  if (m_currentHdr.GetAddr1 ().IsGroup () && m_currentHdr.IsData ())
+    {
+      if (!m_txOkCallback.IsNull ())
+        {
+          m_txOkCallback (m_currentHdr);
+        }
+      if (m_urCount > 0)
+        {
+          NS_LOG_UNCOND ("-------- m_urCount = " << m_urCount << ". start next unsolicited retry. --------");
+          m_currentHdr.SetRetry ();
+          m_urCount = m_urCount - 1;
+          m_dcf->ResetCw ();
+          m_dcf->StartBackoffNow (m_rng->GetInteger (0, m_dcf->GetCw ()));
+          RestartAccessIfNeeded ();
+        }
+      else
+        {
+          NS_LOG_UNCOND ("-------- m_urCount = " << m_urCount << ". finish unsolicited retry. --------");
+          m_urCount = m_urLimit;
+          m_currentPacket = 0;
+          m_dcf->ResetCw ();
+          m_dcf->StartBackoffNow (m_rng->GetInteger (0, m_dcf->GetCw ()));
+          StartAccessIfNeeded ();
+        }
+    }
+  else
+    {
+      m_currentPacket = 0;
+      m_dcf->ResetCw ();
+      m_dcf->StartBackoffNow (m_rng->GetInteger (0, m_dcf->GetCw ()));
+      StartAccessIfNeeded ();
+    }
 }
 
 bool
@@ -619,6 +651,19 @@ bool
 DcaTxop::HasTxop (void) const
 {
   return false;
+}
+
+int
+DcaTxop::GetUrLimit (void) const
+{
+  return m_urLimit;
+}
+
+void
+DcaTxop::SetUrLimit (int urLimit)
+{
+  NS_LOG_UNCOND ("DcaTxop : Set the limit as " << urLimit << " for GCR Unsolicited Retry.");
+  m_urLimit = urLimit;
 }
 
 } //namespace ns3

@@ -407,7 +407,8 @@ WifiRemoteStationManager::WifiRemoteStationManager ()
     m_useGreenfieldProtection (false),
     m_shortPreambleEnabled (false),
     m_shortSlotTimeEnabled (false),
-    m_rifsPermitted (false)
+    m_rifsPermitted (false),
+    m_aaSupported (false)
 {
   NS_LOG_FUNCTION (this);
 }
@@ -618,6 +619,40 @@ uint32_t
 WifiRemoteStationManager::GetFragmentationThreshold (void) const
 {
   return DoGetFragmentationThreshold ();
+}
+
+bool
+WifiRemoteStationManager::GetAaSupported (Mac48Address address) const
+{
+  return LookupState (address)->m_aaSupported;
+}
+
+bool
+WifiRemoteStationManager::GetAaSupported (const WifiRemoteStation *station) const
+{
+  return station->m_state->m_aaSupported;
+}
+
+void
+WifiRemoteStationManager::SetAaSupport (Mac48Address from, bool aaSupported)
+{
+  NS_LOG_FUNCTION (this << from << aaSupported);
+  WifiRemoteStationState *state;
+  state = LookupState (from);
+  state->m_aaSupported = aaSupported;
+}
+
+void
+WifiRemoteStationManager::SetAaSupported (bool enable)
+{
+  NS_LOG_FUNCTION (this << enable);
+  m_aaSupported = enable;
+}
+
+bool
+WifiRemoteStationManager::HasAaSupported (void) const
+{
+  return m_aaSupported;
 }
 
 void
@@ -842,7 +877,22 @@ WifiRemoteStationManager::GetDataTxVector (Mac48Address address, const WifiMacHe
   NS_LOG_FUNCTION (this << address << *header << packet);
   if (address.IsGroup ())
     {
-      WifiMode mode = GetNonUnicastMode ();
+      WifiMode mode;
+      if (header->IsMgt ())
+        {
+          if (GetNBasicModes () > 0)
+            {
+              mode = GetBasicMode (0);
+            }
+          else
+            {
+              mode = GetDefaultMode ();
+            }
+	}
+      else
+        {
+          mode = GetNonUnicastMode ();
+	}
       WifiTxVector v;
       v.SetMode (mode);
       v.SetPreambleType (GetPreambleForTransmission (mode, address));
@@ -944,7 +994,7 @@ WifiRemoteStationManager::GetRtsTxVector (Mac48Address address, const WifiMacHea
                                           Ptr<const Packet> packet)
 {
   NS_LOG_FUNCTION (this << address << *header << packet);
-  NS_ASSERT (!address.IsGroup ());
+  //NS_ASSERT (!address.IsGroup ());
   if (!IsLowLatency ())
     {
       HighLatencyRtsTxVectorTag rtstag;
